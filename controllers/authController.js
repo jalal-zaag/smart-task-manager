@@ -13,6 +13,13 @@ const generateToken = (id) => {
 // @access  Public
 exports.register = async (req, res) => {
   try {
+    console.log('===== REGISTER REQUEST =====');
+    console.log('Request body:', req.body);
+    console.log('Request headers:', req.headers);
+    console.log('Request method:', req.method);
+    console.log('Request URL:', req.url);
+    console.log('===========================');
+    
     const { name, email, password } = req.body;
 
     // Check if user already exists

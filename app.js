@@ -14,32 +14,60 @@ const dashboardRoutes = require('./routes/dashboardRoutes');
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: '*', // Allow all origins in development
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Request logging middleware
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+  next();
+});
 
 // Database connection
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/smart_task_manager', {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
+    const mongoURI = process.env.MONGODB_URI || 'mongodb://localhost:27017/smart_task_manager';
+    
+    // For local MongoDB
+    if (!mongoURI.includes('mongodb+srv://')) {
+      const conn = await mongoose.connect(mongoURI);
+      console.log(`MongoDB Connected: ${conn.connection.host}`);
+      return;
+    }
+    
+    // For MongoDB Atlas - handle OpenSSL 3.0 compatibility
+    const options = {
+      serverSelectionTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
+    };
+    
+    const conn = await mongoose.connect(mongoURI, options);
     console.log(`MongoDB Connected: ${conn.connection.host}`);
   } catch (error) {
-    console.error(`Error: ${error.message}`);
-    process.exit(1);
+    console.error(`MongoDB Connection Error: ${error.message}`);
+    console.error('\nTroubleshooting steps:');
+    console.error('1. Check if MongoDB Atlas IP whitelist includes your IP');
+    console.error('2. Verify database credentials are correct');
+    console.error('3. Try using local MongoDB: mongodb://localhost:27017/smart_task_manager');
+    console.error('\nFalling back to local MongoDB...');
+    
+    // Try local MongoDB as fallback
+    try {
+      const conn = await mongoose.connect('mongodb://localhost:27017/smart_task_manager');
+      console.log(`✓ Connected to local MongoDB: ${conn.connection.host}`);
+    } catch (localError) {
+      console.error('Local MongoDB also unavailable. Please install MongoDB or fix Atlas connection.');
+      process.exit(1);
+    }
   }
 };
 
 connectDB();
-
-// Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/teams', teamRoutes);
-app.use('/api/projects', projectRoutes);
-app.use('/api/tasks', taskRoutes);
-app.use('/api/dashboard', dashboardRoutes);
 
 // Root route
 app.get('/', (req, res) => {
@@ -87,6 +115,13 @@ app.get('/', (req, res) => {
     }
   });
 });
+
+// API Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/teams', teamRoutes);
+app.use('/api/projects', projectRoutes);
+app.use('/api/tasks', taskRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // Error handler
 app.use((err, req, res, next) => {
